@@ -15,6 +15,9 @@ BOT_TOKEN=$(jq -r '.BOT_TOKEN' setup_config.json)
 DOMAIN_OR_IP=$(jq -r '.DOMAIN_OR_IP' setup_config.json)
 ADMINS=$(jq -r '.ADMINS | join(",")' setup_config.json)
 
+# Устанавливаем режим noninteractive для установки пакетов
+export DEBIAN_FRONTEND=noninteractive
+
 # Обновляем пакеты
 sudo apt update
 sudo apt upgrade -y
