@@ -1,0 +1,5 @@
+{
+    "BOT_TOKEN": "your_bot_token",
+    "DOMAIN_OR_IP": "your_domain_or_ip",
+    "ADMINS": ["your_admin_id1", "your_admin_id2", "your_admin_id3"]
+}
