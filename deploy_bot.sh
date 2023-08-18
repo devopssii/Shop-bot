@@ -31,15 +31,15 @@ source crabtash/bin/activate
 pip install -r requirements.txt
 
 # Обновляем конфигурацию бота
-sed -i "s/BOT_TOKEN = .*/BOT_TOKEN = '$BOT_TOKEN'/g" config.py
-sed -i "s/WEBHOOK_HOST = .*/WEBHOOK_HOST = 'https:\/\/$DOMAIN_OR_IP'/g" config.py
-sed -i "s/ADMINS = .*/ADMINS = [$ADMINS]/g" config.py
+sed -i "s/BOT_TOKEN = .*/BOT_TOKEN = '$BOT_TOKEN'/g" /data/config.py
+sed -i "s/WEBHOOK_HOST = .*/WEBHOOK_HOST = 'https:\/\/$DOMAIN_OR_IP'/g" /data/config.py
+sed -i "s/ADMINS = .*/ADMINS = [$ADMINS]/g" /data/config.py
 
 # Получаем SSL-сертификат
 sudo certbot certonly --standalone --preferred-challenges http -d $DOMAIN_OR_IP
 
 # Настраиваем Nginx
-sudo tee /etc/nginx/sites-available/bot <<EOF
+sudo tee /etc/nginx/sites-available/default <<EOF
 server {
     listen 80;
     server_name $DOMAIN_OR_IP;
