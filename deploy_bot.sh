@@ -63,4 +63,4 @@ sudo ln -s /etc/nginx/sites-available/bot /etc/nginx/sites-enabled/
 sudo systemctl restart nginx
 
 # Запускаем бота
-python3 main.py
+python3 main.py --port 8000
