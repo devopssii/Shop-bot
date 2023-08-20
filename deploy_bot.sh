@@ -66,4 +66,4 @@ sudo ln -s /etc/nginx/sites-available/default /etc/nginx/sites-enabled/
 sudo systemctl restart nginx
 
 # Запускаем бота
-python3 main.py
+python3 app.py
