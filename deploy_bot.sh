@@ -12,7 +12,7 @@ fi
 
 # Читаем файл конфигурации
 BOT_TOKEN=$(jq -r '.BOT_TOKEN' setup_config.json)
-DOMAIN_OR_IP=$(jq -r '.DOMAIN_OR_IP' setup_config.json)
+DOMAIN_OR_IP=$(curl -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/network-interfaces/0/access-configs/0/external-ip")
 ADMINS=$(jq -r '.ADMINS | join(",")' setup_config.json)
 
 # Устанавливаем режим noninteractive для установки пакетов
@@ -36,7 +36,7 @@ sed -i "s/WEBHOOK_HOST = .*/WEBHOOK_HOST = 'https:\/\/$DOMAIN_OR_IP'/g" /data/co
 sed -i "s/ADMINS = .*/ADMINS = [$ADMINS]/g" /data/config.py
 
 # Получаем SSL-сертификат
-sudo certbot certonly --standalone --preferred-challenges http -d $DOMAIN_OR_IP
+sudo certbot certonly --standalone --preferred-challenges http --non-interactive --agree-tos --email ai@synlabs.pro -d $DOMAIN_OR_IP
 
 # Настраиваем Nginx
 sudo tee /etc/nginx/sites-available/default <<EOF
@@ -54,7 +54,7 @@ server {
     ssl_certificate_key /etc/letsencrypt/live/$DOMAIN_OR_IP/privkey.pem;
 
     location / {
-        proxy_pass http://127.0.0.1:8000;
+        proxy_pass http://127.0.0.1;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -62,8 +62,8 @@ server {
 }
 EOF
 
-sudo ln -s /etc/nginx/sites-available/bot /etc/nginx/sites-enabled/
+sudo ln -s /etc/nginx/sites-available/default /etc/nginx/sites-enabled/
 sudo systemctl restart nginx
 
 # Запускаем бота
-python3 main.py --port 8000
+python3 main.py
