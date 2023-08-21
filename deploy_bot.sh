@@ -11,10 +11,10 @@ if ! command_exists jq ; then
 fi
 
 # Читаем файл конфигурации
+# Читаем файл конфигурации
 BOT_TOKEN=$(jq -r '.BOT_TOKEN' setup_config.json)
-DOMAIN_OR_IP=$(curl -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/network-interfaces/0/access-configs/0/external-ip")
+DOMAIN_OR_IP=$(jq -r '.DOMAIN_OR_IP' setup_config.json)
 ADMINS=$(jq -r '.ADMINS | join(",")' setup_config.json)
-
 # Устанавливаем режим noninteractive для установки пакетов
 export DEBIAN_FRONTEND=noninteractive
 
@@ -31,9 +31,9 @@ source crabtash/bin/activate
 pip install -r requirements.txt
 
 # Обновляем конфигурацию бота
-sed -i "s/BOT_TOKEN = .*/BOT_TOKEN = '$BOT_TOKEN'/g" /data/config.py
-sed -i "s/WEBHOOK_HOST = .*/WEBHOOK_HOST = 'https:\/\/$DOMAIN_OR_IP'/g" /data/config.py
-sed -i "s/ADMINS = .*/ADMINS = [$ADMINS]/g" /data/config.py
+sed -i "s/BOT_TOKEN = .*/BOT_TOKEN = '$BOT_TOKEN'/g" ./data/config.py
+sed -i "s/WEBHOOK_HOST = .*/WEBHOOK_HOST = 'https:\/\/$DOMAIN_OR_IP'/g" ./data/config.py
+sed -i "s/ADMINS = .*/ADMINS = [$ADMINS]/g" ./data/config.py
 
 # Получаем SSL-сертификат
 sudo certbot certonly --standalone --preferred-challenges http --non-interactive --agree-tos --email ai@synlabs.pro -d $DOMAIN_OR_IP
@@ -54,7 +54,7 @@ server {
     ssl_certificate_key /etc/letsencrypt/live/$DOMAIN_OR_IP/privkey.pem;
 
     location / {
-        proxy_pass http://127.0.0.1;
+        proxy_pass http://127.0.0.1:5000;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
