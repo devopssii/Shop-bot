@@ -24,6 +24,17 @@ async def cmd_start(message: types.Message):
     else:
         markup.row('Пользователь')
 
+    # определение языка пользователя
+    user_language = message.from_user.language_code
+    user_id = message.from_user.id
+    user_name = f"{message.from_user.first_name} {message.from_user.last_name}"
+
+    # запись информации о пользователе в базу данных
+    db.query(
+        'INSERT OR IGNORE INTO users (id, cid, name, lang) VALUES (?, ?, ?, ?)',
+        (user_id, user_id, user_name, user_language)
+    )
+
     await message.answer('''Привет! 👋
 
 🤖 Я бот-магазин по подаже товаров любой категории.
