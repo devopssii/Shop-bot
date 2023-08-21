@@ -28,13 +28,13 @@ async def cmd_start(message: types.Message):
     user_language = message.from_user.language_code
     user_id = message.from_user.id
     user_name = f"{message.from_user.first_name} {message.from_user.last_name}"
+    user_phone = message.from_user.phone_number
 
     # запись информации о пользователе в базу данных
     db.query(
-        'INSERT OR IGNORE INTO users (id, cid, name, lang) VALUES (?, ?, ?, ?)',
-        (user_id, user_id, user_name, user_language)
+        'INSERT OR IGNORE INTO users (id, cid, name, lang, mobile) VALUES (?, ?, ?, ?, ?)',
+        (user_id, user_id, user_name, user_language, user_phone)
     )
-
     await message.answer('''Привет! 👋
 
 🤖 Я бот-магазин по подаже товаров любой категории.
