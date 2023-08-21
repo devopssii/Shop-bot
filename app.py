@@ -16,13 +16,18 @@ admin_message = 'Админ'
 
 @dp.message_handler(commands='start')
 async def cmd_start(message: types.Message):
+
     markup = ReplyKeyboardMarkup(resize_keyboard=True)
-    markup.row(user_message, admin_message)
+    
+    if message.from_user.id in config.ADMINS:
+        markup.row('Пользователь', 'Админ')
+    else:
+        markup.row('Пользователь')
 
     await message.answer('''Привет! 👋
 
-🤖 Я бот-магазин по подаже раков и морепродуктов.
-
+🤖 Я бот-магазин по подаже товаров любой категории.
+    
 🛍️ Чтобы перейти в каталог и выбрать приглянувшиеся товары возпользуйтесь командой /menu.
 
     ''', reply_markup=markup)
