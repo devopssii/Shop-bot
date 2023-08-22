@@ -151,11 +151,11 @@ async def process_check_cart_all_right(message: Message, state: FSMContext):
                 await confirm(message)
                 await CheckoutState.confirm.set()
             else:
-                await CheckoutState.next()
+                await CheckoutState.address.set()
                 await message.answer('Укажите свой адрес места жительства.', reply_markup=back_markup())
     else:
         # Если это первый заказ пользователя, запрашиваем его имя
-        await CheckoutState.next()
+        await CheckoutState.name.set()
         await message.answer('Укажите свое имя.', reply_markup=back_markup())
 
 @dp.message_handler(IsUser(), text=back_message, state=CheckoutState.name)
