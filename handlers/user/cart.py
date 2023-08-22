@@ -146,7 +146,7 @@ async def process_check_cart_all_right(message: Message, state: FSMContext):
     if user_data:
         # Если у нас уже есть информация о пользователе, пропускаем шаг с именем
         async with state.proxy() as data:
-            data["name"] = user_data["name"]
+            data["name"] = user_data[6]
             if "address" in data.keys():
                 await confirm(message)
                 await CheckoutState.confirm.set()
