@@ -140,38 +140,42 @@ async def process_check_cart_back(message: Message, state: FSMContext):
     await state.finish()
     await process_cart(message, state)
 
-
 @dp.message_handler(IsUser(), text=all_right_message, state=CheckoutState.check_cart)
 async def process_check_cart_all_right(message: Message, state: FSMContext):
-    await CheckoutState.next()
-    await message.answer('Укажите свое имя.',
-                         reply_markup=back_markup())
-
+    user_data = db.fetchone("SELECT * FROM users WHERE cid=?", (message.chat.id,))
+    if user_data:
+        # Если у нас уже есть информация о пользователе, пропускаем шаг с именем
+        async with state.proxy() as data:
+            data["name"] = user_data["name"]
+            if "address" in data.keys():
+                await confirm(message)
+                await CheckoutState.confirm.set()
+            else:
+                await CheckoutState.next()
+                await message.answer('Укажите свой адрес места жительства.', reply_markup=back_markup())
+    else:
+        # Если это первый заказ пользователя, запрашиваем его имя
+        await CheckoutState.next()
+        await message.answer('Укажите свое имя.', reply_markup=back_markup())
 
 @dp.message_handler(IsUser(), text=back_message, state=CheckoutState.name)
 async def process_name_back(message: Message, state: FSMContext):
     await CheckoutState.check_cart.set()
     await checkout(message, state)
 
-
 @dp.message_handler(IsUser(), state=CheckoutState.name)
 async def process_name(message: Message, state: FSMContext):
-
     async with state.proxy() as data:
+        data["name"] = message.text
+        # Сохраняем имя пользователя в таблице users
+        db.query("INSERT INTO users (cid, name) VALUES (?, ?)", (message.chat.id, message.text))
 
-        data['name'] = message.text
-
-        if 'address' in data.keys():
-
+        if "address" in data.keys():
             await confirm(message)
             await CheckoutState.confirm.set()
-
         else:
-
             await CheckoutState.next()
-            await message.answer('Укажите свой адрес места жительства.',
-                                 reply_markup=back_markup())
-
+            await message.answer('Укажите свой адрес места жительства.', reply_markup=back_markup())
 
 @dp.message_handler(IsUser(), text=back_message, state=CheckoutState.address)
 async def process_address_back(message: Message, state: FSMContext):
