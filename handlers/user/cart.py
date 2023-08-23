@@ -155,8 +155,11 @@ async def process_check_cart_all_right(message: Message, state: FSMContext):
                 await message.answer(f'Последний раз Вы заказывали сюда: {data["address"]}\nОтправить на этот адрес?', reply_markup=markup)
                 await CheckoutState.choose_address.set()
             else:
-                await message.answer("Отправьте свою локацию.")
-                await CheckoutState.send_location.set()
+                markup = ReplyKeyboardMarkup(resize_keyboard=True, selective=True)
+                location_button = KeyboardButton(text="Отправить локацию", request_location=True)
+                markup.add(location_button)
+                await message.answer("Отправьте свою локацию или напишите и отправьте адрес.", reply_markup=markup)
+                await CheckoutState.send_location_or_text.set()
     else:
         # Если это первый заказ пользователя, запрашиваем его имя
         await CheckoutState.name.set()
