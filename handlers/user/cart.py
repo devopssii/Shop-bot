@@ -144,19 +144,33 @@ async def process_check_cart_back(message: Message, state: FSMContext):
 async def process_check_cart_all_right(message: Message, state: FSMContext):
     user_data = db.fetchone("SELECT * FROM users WHERE cid=?", (message.chat.id,))
     if user_data:
-        # Если у нас уже есть информация о пользователе, пропускаем шаг с именем
+        # Если у нас уже есть информация о пользователе
         async with state.proxy() as data:
             data["name"] = user_data[6]
-            if "address" in data.keys():
-                await confirm(message)
-                await CheckoutState.confirm.set()
+            data["address"] = user_data[3]  # предполагая, что адрес находится в 4-й колонке
+            if data["address"]:  # Если у нас уже есть адрес
+                markup = ReplyKeyboardMarkup(resize_keyboard=True, selective=True)
+                markup.add("Отправить на этот")
+                markup.add("Отправить новый адрес")
+                await message.answer(f'Последний раз Вы заказывали сюда: {data["address"]}\nОтправить на этот адрес?', reply_markup=markup)
+                await CheckoutState.choose_address.set()
             else:
-                await CheckoutState.address.set()
-                await message.answer('Укажите свой адрес места жительства.', reply_markup=back_markup())
+                await message.answer("Отправьте свою локацию.")
+                await CheckoutState.send_location.set()
     else:
         # Если это первый заказ пользователя, запрашиваем его имя
         await CheckoutState.name.set()
         await message.answer('Укажите свое имя.', reply_markup=back_markup())
+
+@dp.message_handler(IsUser(), text="Отправить на этот", state=CheckoutState.choose_address)
+async def process_use_same_address(message: Message, state: FSMContext):
+    await confirm(message)
+    await CheckoutState.confirm.set()
+
+@dp.message_handler(IsUser(), text="Отправить новый адрес", state=CheckoutState.choose_address)
+async def process_new_address(message: Message, state: FSMContext):
+    await message.answer("Пожалуйста, отправьте вашу геолокацию.")
+    await CheckoutState.send_location.set()
 
 @dp.message_handler(IsUser(), text=back_message, state=CheckoutState.name)
 async def process_name_back(message: Message, state: FSMContext):
