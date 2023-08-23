@@ -186,9 +186,27 @@ async def process_new_address(message: Message, state: FSMContext):
 async def process_name_back(message: Message, state: FSMContext):
     await CheckoutState.check_cart.set()
     await checkout(message, state)
+    
+#Функция обработки нажатия на кнопку получения локации при остуствии в базе адреса
+@dp.message_handler(IsUser(), content_types=["location"], state=CheckoutState.send_location_or_text)
+async def process_user_location_from_button(message: Message, state: FSMContext):
+    user_location = message.location
+    latitude = user_location.latitude
+    longitude = user_location.longitude
 
-from aiogram.types import Message, Location
+    # Сохраняем координаты в переменную
+    coordinates = f"{latitude}, {longitude}"
 
+    async with state.proxy() as data:
+        data["coordinates"] = coordinates
+
+    # Сохраняем координаты в базе данных (по вашему усмотрению, вы можете преобразовать их в адрес)
+    db.query("UPDATE users SET coordinates = ? WHERE cid = ?", (coordinates, message.chat.id))
+
+    await confirm(message)
+    await CheckoutState.confirm.set()
+
+#Функция обработки нажатия на кнопку получения локации при изменении адреса
 @dp.message_handler(IsUser(), content_types=["location"], state=CheckoutState.send_location)
 async def process_user_location(message: Message, state: FSMContext):
     user_location = message.location
