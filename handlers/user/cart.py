@@ -9,7 +9,7 @@ from states import CheckoutState
 from loader import dp, db, bot
 from filters import IsUser
 from .menu import cart
-
+from aiogram.types import Location
 
 @dp.message_handler(IsUser(), text=cart)
 async def process_cart(message: Message, state: FSMContext):
