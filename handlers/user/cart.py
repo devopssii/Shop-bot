@@ -177,6 +177,20 @@ async def process_name_back(message: Message, state: FSMContext):
     await CheckoutState.check_cart.set()
     await checkout(message, state)
 
+@dp.message_handler(IsUser(), content_types=["location"], state=CheckoutState.send_location)
+async def process_user_location(message: Message, state: FSMContext):
+    lat = message.location.latitude
+    lon = message.location.longitude
+
+    # Сохраняем координаты в базу данных (предполагая, что у вас есть столбец coordinates)
+    user_id = message.chat.id
+    db.query("UPDATE users SET coordinates = ? WHERE cid=?", (f"{lat},{lon}", user_id))
+
+    # Здесь вы можете добавить логику преобразования координат в адрес, когда у вас появится такая возможность
+
+    await confirm(message)
+    await CheckoutState.confirm.set()
+
 @dp.message_handler(IsUser(), state=CheckoutState.name)
 async def process_name(message: Message, state: FSMContext):
     async with state.proxy() as data:
