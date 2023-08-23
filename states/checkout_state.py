@@ -5,3 +5,5 @@ class CheckoutState(StatesGroup):
     name = State()
     address = State()
     confirm = State()
+    send_location = State()
+    choose_address = State()  # Убедитесь, что это состояние присутствует
