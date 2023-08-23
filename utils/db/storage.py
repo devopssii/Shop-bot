@@ -16,7 +16,7 @@ class DatabaseManager(object):
         self.query('CREATE TABLE IF NOT EXISTS categories (idx text, title text)')
         self.query('CREATE TABLE IF NOT EXISTS wallet (cid int, balance real)')
         self.query('CREATE TABLE IF NOT EXISTS questions (cid int, question text)')
-        self.query('CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY, cid INTEGER, user_group TEXT, address TEXT, address_comment TEXT, mobile TEXT, name TEXT, lang TEXT)')
+        self.query('CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY, cid INTEGER, user_group TEXT, address TEXT, address_comment TEXT, mobile TEXT, name TEXT, lang TEXT, coordinates TEXT)')
         
     def query(self, arg, values=None):
         if values == None:
