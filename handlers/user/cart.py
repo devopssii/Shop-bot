@@ -165,6 +165,13 @@ async def process_check_cart_all_right(message: Message, state: FSMContext):
         await CheckoutState.name.set()
         await message.answer('Укажите свое имя.', reply_markup=back_markup())
 
+@dp.message_handler(IsUser(), content_types=["text"], state=CheckoutState.send_location_or_text)
+async def process_user_address(message: Message, state: FSMContext):
+    address = message.text
+    db.query("UPDATE users SET address = ? WHERE cid = ?", (address, message.chat.id))
+    await confirm(message)
+    await CheckoutState.confirm.set()
+
 @dp.message_handler(IsUser(), text="Отправить на этот", state=CheckoutState.choose_address)
 async def process_use_same_address(message: Message, state: FSMContext):
     await confirm(message)
