@@ -7,3 +7,4 @@ class CheckoutState(StatesGroup):
     confirm = State()
     send_location = State()
     choose_address = State()  # Убедитесь, что это состояние присутствует
+    send_location_or_text = State()
