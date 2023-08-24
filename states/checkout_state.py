@@ -8,3 +8,5 @@ class CheckoutState(StatesGroup):
     send_location = State()
     choose_address = State()  # Убедитесь, что это состояние присутствует
     send_location_or_text = State()
+    send_contact_or_text = State()  # Для сохранения мобильного номера из сообщения или контакта
+    confirm_mobile = State()  # Для подтверждения или изменения мобильного номера
