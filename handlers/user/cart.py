@@ -276,6 +276,7 @@ async def process_user_location(message: Message, state: FSMContext):
 
     await confirm(message)
     await CheckoutState.confirm.set()
+##Разделение кода выше писали мы ниже писали не мы 
 
 @dp.message_handler(IsUser(), state=CheckoutState.name)
 async def process_name(message: Message, state: FSMContext):
@@ -331,7 +332,7 @@ async def process_confirm(message: Message, state: FSMContext):
     async with state.proxy() as data:
         await message.answer('Изменить адрес с <b>' + data['address'] + '</b>?',
                              reply_markup=back_markup())
-
+##Разделение кода выше писали НЕ МЫ ниже писали МЫ
 #Подтверждени и создание заказа в таблицу orders 
 @dp.message_handler(IsUser(), text=confirm_message, state=CheckoutState.confirm)
 async def process_confirm(message: Message, state: FSMContext):
