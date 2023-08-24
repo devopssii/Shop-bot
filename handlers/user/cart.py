@@ -139,6 +139,41 @@ async def process_check_cart_invalid(message: Message):
 async def process_check_cart_back(message: Message, state: FSMContext):
     await state.finish()
     await process_cart(message, state)
+#Функции проверки данных клиента - Проверка имени
+async def check_name(data, message):
+    if not data["name"]:
+        await CheckoutState.name.set()
+        await message.answer('Укажите свое имя.', reply_markup=back_markup())
+        return False
+    return True
+
+async def check_address(data, message):
+    if data["address"]:
+        markup = ReplyKeyboardMarkup(resize_keyboard=True, selective=True)
+        markup.add("Отправить на этот")
+        markup.add("Отправить новый адрес")
+        await message.answer(f'Последний раз Вы заказывали сюда: {data["address"]}\nОтправить на этот адрес?', reply_markup=markup)
+        await CheckoutState.choose_address.set()
+    else:
+        markup = ReplyKeyboardMarkup(resize_keyboard=True, selective=True)
+        location_button = KeyboardButton(text="Отправить локацию", request_location=True)
+        markup.add(location_button)
+        await message.answer("Отправьте свою локацию или напишите и отправьте адрес.", reply_markup=markup)
+        await CheckoutState.send_location_or_text.set()
+
+async def check_mobile(data, message):
+    if not data["mobile"]:
+        markup = ReplyKeyboardMarkup(resize_keyboard=True, selective=True)
+        phone_button = KeyboardButton(text="Отправить контакт", request_contact=True)
+        markup.add(phone_button)
+        await message.answer("Пожалуйста, укажите свой номер телефона или поделитесь контактом.", reply_markup=markup)
+        await CheckoutState.send_contact_or_text.set()
+    else:
+        markup = ReplyKeyboardMarkup(resize_keyboard=True, selective=True)
+        markup.add("Номер верный")
+        markup.add("Отправить контакт")
+        await message.answer(f'Подтвердите номер для связи с курьером: {data["mobile"]}\nЧтобы изменить номер, отправьте сообщение с ним или поделитесь контактом.', reply_markup=markup)
+        await CheckoutState.confirm_mobile.set()
 
 @dp.message_handler(IsUser(), text=all_right_message, state=CheckoutState.check_cart)
 async def process_check_cart_all_right(message: Message, state: FSMContext):
@@ -147,41 +182,13 @@ async def process_check_cart_all_right(message: Message, state: FSMContext):
         if user_data:
             data["name"] = user_data[6]
             data["address"] = user_data[3]
-            data["mobile"] = user_data[5]  # предполагая, что мобильный номер находится в 8-й колонке
-            
-            # Проверка имени
-            if not data["name"]:
-                await CheckoutState.name.set()
-                await message.answer('Укажите свое имя.', reply_markup=back_markup())
+            data["mobile"] = user_data[5]
+
+            if not await check_name(data, message): 
                 return
-                
-            if data["address"]:  # Если у нас уже есть адрес
-                markup = ReplyKeyboardMarkup(resize_keyboard=True, selective=True)
-                markup.add("Отправить на этот")
-                markup.add("Отправить новый адрес")
-                await message.answer(f'Последний раз Вы заказывали сюда: {data["address"]}\nОтправить на этот адрес?', reply_markup=markup)
-                await CheckoutState.choose_address.set()
-            else:
-                markup = ReplyKeyboardMarkup(resize_keyboard=True, selective=True)
-                location_button = KeyboardButton(text="Отправить локацию", request_location=True)
-                markup.add(location_button)
-                await message.answer("Отправьте свою локацию или напишите и отправьте адрес.", reply_markup=markup)
-                await CheckoutState.send_location_or_text.set()
-            # Проверка мобильного номера
-            if not data["mobile"]:
-                markup = ReplyKeyboardMarkup(resize_keyboard=True, selective=True)
-                phone_button = KeyboardButton(text="Отправить контакт", request_contact=True)
-                markup.add(phone_button)
-                await message.answer("Пожалуйста, укажите свой номер телефона или поделитесь контактом.", reply_markup=markup)
-                await CheckoutState.send_contact_or_text.set()
-            else:
-                markup = ReplyKeyboardMarkup(resize_keyboard=True, selective=True)
-                markup.add("Номер верный")
-                markup.add("Отправить контакт")
-                await message.answer(f'Подтвердите номер для связи с курьером: {data["mobile"]}\nЧтобы изменить номер, отправьте сообщение с ним или поделитесь контактом.', reply_markup=markup)
-                await CheckoutState.confirm_mobile.set()
+            await check_address(data, message)
+            await check_mobile(data, message)
         else:
-            # Если это первый заказ пользователя, запрашиваем его имя
             await CheckoutState.name.set()
             await message.answer('Укажите свое имя.', reply_markup=back_markup())
 
