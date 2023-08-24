@@ -291,13 +291,9 @@ async def process_name(message: Message, state: FSMContext):
         data["name"] = message.text
         # Сохраняем имя пользователя в таблице users
         db.query("UPDATE users SET name = ? WHERE cid = ?", (message.text, message.chat.id))
-
-        if "address" in data.keys():
-            await confirm(message)
-            await CheckoutState.confirm.set()
-        else:
-            await CheckoutState.next()
-            await message.answer('Укажите свой адрес места жительства.', reply_markup=back_markup())
+    
+    # Переходим к следующему этапу - проверке адреса
+    await check_address(data, message)
 
 @dp.message_handler(IsUser(), text=back_message, state=CheckoutState.address)
 async def process_address_back(message: Message, state: FSMContext):
