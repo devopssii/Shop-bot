@@ -143,11 +143,18 @@ async def process_check_cart_back(message: Message, state: FSMContext):
 @dp.message_handler(IsUser(), text=all_right_message, state=CheckoutState.check_cart)
 async def process_check_cart_all_right(message: Message, state: FSMContext):
     user_data = db.fetchone("SELECT * FROM users WHERE cid=?", (message.chat.id,))
-    if user_data:
-        # Если у нас уже есть информация о пользователе
-        async with state.proxy() as data:
+    async with state.proxy() as data:
+        if user_data:
             data["name"] = user_data[6]
-            data["address"] = user_data[3]  # предполагая, что адрес находится в 4-й колонке
+            data["address"] = user_data[3]
+            data["mobile"] = user_data[5]  # предполагая, что мобильный номер находится в 8-й колонке
+            
+            # Проверка имени
+            if not data["name"]:
+                await CheckoutState.name.set()
+                await message.answer('Укажите свое имя.', reply_markup=back_markup())
+                return
+                
             if data["address"]:  # Если у нас уже есть адрес
                 markup = ReplyKeyboardMarkup(resize_keyboard=True, selective=True)
                 markup.add("Отправить на этот")
@@ -160,10 +167,54 @@ async def process_check_cart_all_right(message: Message, state: FSMContext):
                 markup.add(location_button)
                 await message.answer("Отправьте свою локацию или напишите и отправьте адрес.", reply_markup=markup)
                 await CheckoutState.send_location_or_text.set()
+            # Проверка мобильного номера
+            if not data["mobile"]:
+                markup = ReplyKeyboardMarkup(resize_keyboard=True, selective=True)
+                phone_button = KeyboardButton(text="Отправить контакт", request_contact=True)
+                markup.add(phone_button)
+                await message.answer("Пожалуйста, укажите свой номер телефона или поделитесь контактом.", reply_markup=markup)
+                await CheckoutState.send_contact_or_text.set()
+            else:
+                markup = ReplyKeyboardMarkup(resize_keyboard=True, selective=True)
+                markup.add("Номер верный")
+                markup.add("Отправить контакт")
+                await message.answer(f'Подтвердите номер для связи с курьером: {data["mobile"]}\nЧтобы изменить номер, отправьте сообщение с ним или поделитесь контактом.', reply_markup=markup)
+                await CheckoutState.confirm_mobile.set()
+
     else:
         # Если это первый заказ пользователя, запрашиваем его имя
         await CheckoutState.name.set()
         await message.answer('Укажите свое имя.', reply_markup=back_markup())
+
+# Обработчик для сохранения мобильного номера из сообщения
+@dp.message_handler(IsUser(), content_types=["text"], state=CheckoutState.send_contact_or_text)
+async def process_user_mobile_from_text(message: Message, state: FSMContext):
+    mobile = message.text
+    db.query("UPDATE users SET mobile = ? WHERE cid = ?", (mobile, message.chat.id))
+    await confirm(message)  # Метод для подтверждения заказа
+    await CheckoutState.confirm.set()
+
+# Обработчик для сохранения мобильного номера из контакта
+@dp.message_handler(IsUser(), content_types=["contact"], state=CheckoutState.send_contact_or_text)
+async def process_user_mobile_from_contact(message: Message, state: FSMContext):
+    contact = message.contact
+    mobile = contact.phone_number
+    db.query("UPDATE users SET mobile = ? WHERE cid = ?", (mobile, message.chat.id))
+    await confirm(message)  # Метод для подтверждения заказа
+    await CheckoutState.confirm.set()
+
+# Обработчик для подтверждения или изменения мобильного номера
+@dp.message_handler(IsUser(), text=["Номер верный", "Отправить контакт"], state=CheckoutState.confirm_mobile)
+async def process_confirm_or_change_mobile(message: Message, state: FSMContext):
+    if message.text == "Номер верный":
+        await confirm(message)
+        await CheckoutState.confirm.set()
+    else:
+        markup = ReplyKeyboardMarkup(resize_keyboard=True, selective=True)
+        phone_button = KeyboardButton(text="Отправить контакт", request_contact=True)
+        markup.add(phone_button)
+        await message.answer("Пожалуйста, укажите свой номер телефона или поделитесь контактом.", reply_markup=markup)
+        await CheckoutState.send_contact_or_text.set()
 
 @dp.message_handler(IsUser(), content_types=["text"], state=CheckoutState.send_location_or_text)
 async def process_user_address(message: Message, state: FSMContext):
