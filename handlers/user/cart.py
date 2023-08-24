@@ -186,7 +186,8 @@ async def process_check_cart_all_right(message: Message, state: FSMContext):
 
             if not await check_name(data, message): 
                 return
-            await check_address(data, message)
+            if not await check_address(data, message):
+                return
             await check_mobile(data, message)
         else:
             await CheckoutState.name.set()
@@ -226,8 +227,9 @@ async def process_confirm_or_change_mobile(message: Message, state: FSMContext):
 async def process_user_address(message: Message, state: FSMContext):
     address = message.text
     db.query("UPDATE users SET address = ? WHERE cid = ?", (address, message.chat.id))
-    await confirm(message)
-    await CheckoutState.confirm.set()
+    async with state.proxy() as data:
+        data["address"] = address
+        await check_mobile(data, message)
 
 @dp.message_handler(IsUser(), text="Отправить на этот", state=CheckoutState.choose_address)
 async def process_use_same_address(message: Message, state: FSMContext):
