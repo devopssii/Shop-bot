@@ -282,34 +282,35 @@ async def process_confirm(message: Message, state: FSMContext):
         await message.answer('Изменить адрес с <b>' + data['address'] + '</b>?',
                              reply_markup=back_markup())
 
-
+#Подтверждени и создание заказа в таблицу orders 
 @dp.message_handler(IsUser(), text=confirm_message, state=CheckoutState.confirm)
 async def process_confirm(message: Message, state: FSMContext):
-
     enough_money = True  # enough money on the balance sheet
     markup = ReplyKeyboardRemove()
 
     if enough_money:
-
         logging.info('Deal was made.')
 
-        async with state.proxy() as data:
+        cid = message.chat.id
 
-            cid = message.chat.id
-            products = [idx + '=' + str(quantity)
-                        for idx, quantity in db.fetchall('''SELECT idx, quantity FROM cart
-            WHERE cid=?''', (cid,))]  # idx=quantity
+        # Получаем данные Имя и Адрес из таблицы users для данного пользователя
+        user_data = db.fetchone('SELECT name, address FROM users WHERE cid=?', (cid,))
 
-            db.query('INSERT INTO orders VALUES (?, ?, ?, ?)',
-                     (cid, data['name'], data['address'], ' '.join(products)))
+        if not user_data:
+            await message.answer('Произошла ошибка при получении данных пользователя. Пожалуйста, попробуйте снова.', reply_markup=markup)
+            await state.finish()
+            return
 
-            db.query('DELETE FROM cart WHERE cid=?', (cid,))
+        name, address = user_data
 
-            await message.answer('Ок! Ваш заказ уже в пути 🚀\nИмя: <b>' + data['name'] + '</b>\nАдрес: <b>' + data['address'] + '</b>',
-                                 reply_markup=markup)
+        products = [idx + '=' + str(quantity)
+                    for idx, quantity in db.fetchall('''SELECT idx, quantity FROM cart WHERE cid=?''', (cid,))]  # idx=quantity
+
+        db.query('INSERT INTO orders VALUES (?, ?, ?, ?)', (cid, name, address, ' '.join(products)))
+        db.query('DELETE FROM cart WHERE cid=?', (cid,))
+
+        await message.answer('Ок! Ваш заказ уже в пути 🚀\nИмя: <b>' + name + '</b>\nАдрес: <b>' + address + '</b>', reply_markup=markup)
     else:
-
-        await message.answer('У вас недостаточно денег на счете. Пополните баланс!',
-                             reply_markup=markup)
+        await message.answer('У вас недостаточно денег на счете. Пополните баланс!', reply_markup=markup)
 
     await state.finish()
