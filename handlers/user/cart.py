@@ -180,11 +180,10 @@ async def process_check_cart_all_right(message: Message, state: FSMContext):
                 markup.add("Отправить контакт")
                 await message.answer(f'Подтвердите номер для связи с курьером: {data["mobile"]}\nЧтобы изменить номер, отправьте сообщение с ним или поделитесь контактом.', reply_markup=markup)
                 await CheckoutState.confirm_mobile.set()
-
-    else:
-        # Если это первый заказ пользователя, запрашиваем его имя
-        await CheckoutState.name.set()
-        await message.answer('Укажите свое имя.', reply_markup=back_markup())
+        else:
+            # Если это первый заказ пользователя, запрашиваем его имя
+            await CheckoutState.name.set()
+            await message.answer('Укажите свое имя.', reply_markup=back_markup())
 
 # Обработчик для сохранения мобильного номера из сообщения
 @dp.message_handler(IsUser(), content_types=["text"], state=CheckoutState.send_contact_or_text)
