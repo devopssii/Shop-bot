@@ -282,7 +282,7 @@ async def process_name(message: Message, state: FSMContext):
     async with state.proxy() as data:
         data["name"] = message.text
         # Сохраняем имя пользователя в таблице users
-        db.query("INSERT INTO users (cid, name) VALUES (?, ?)", (message.chat.id, message.text))
+        db.query("INSERT OR REPLACE INTO users (cid, name) VALUES (?, ?)", (message.chat.id, message.text))
 
         if "address" in data.keys():
             await confirm(message)
