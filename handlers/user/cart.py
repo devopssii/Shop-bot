@@ -10,6 +10,9 @@ from loader import dp, db, bot
 from filters import IsUser
 from .menu import cart
 from aiogram.types import Message, Location, KeyboardButton
+import requests
+from concurrent.futures import ThreadPoolExecutor
+import asyncio
 
 @dp.message_handler(IsUser(), text=cart)
 async def process_cart(message: Message, state: FSMContext):
@@ -245,46 +248,42 @@ async def process_new_address(message: Message, state: FSMContext):
 async def process_name_back(message: Message, state: FSMContext):
     await CheckoutState.check_cart.set()
     await checkout(message, state)
-    
-#Функция обработки нажатия на кнопку получения локации при остуствии в базе адреса
+
+async def get_address_from_coordinates(latitude, longitude):
+    loop = asyncio.get_event_loop()
+    with ThreadPoolExecutor() as pool:
+        url = f"https://nominatim.openstreetmap.org/reverse?format=json&lat={latitude}&lon={longitude}"
+        response = await loop.run_in_executor(pool, requests.get, url)
+        data = response.json()
+        return data.get('display_name')
+
 @dp.message_handler(IsUser(), content_types=["location"], state=CheckoutState.send_location_or_text)
 async def process_user_location_from_button(message: Message, state: FSMContext):
     user_location = message.location
-    latitude = user_location.latitude
-    longitude = user_location.longitude
-
-    # Сохраняем координаты в переменную
+    latitude, longitude = user_location.latitude, user_location.longitude
+    address = await get_address_from_coordinates(latitude, longitude, session)
     coordinates = f"{latitude}, {longitude}"
 
-    async with state.proxy() as data:
-        data["coordinates"] = coordinates
-
-    # Сохраняем координаты в базе данных (по вашему усмотрению, вы можете преобразовать их в адрес)
-    db.query("UPDATE users SET coordinates = ? WHERE cid = ?", (coordinates, message.chat.id))
+    # Here, I assume db.query is either synchronous or an async function. Adjust as necessary.
+    db.query("UPDATE users SET address = ?, coordinates = ? WHERE cid = ?", (address, coordinates, message.chat.id))
 
     await confirm(message)
     await CheckoutState.confirm.set()
 
-#Функция обработки нажатия на кнопку получения локации при изменении адреса
+    async with state.proxy() as data:
+        data["address"], data["coordinates"] = address, coordinates
+
 @dp.message_handler(IsUser(), content_types=["location"], state=CheckoutState.send_location)
 async def process_user_location(message: Message, state: FSMContext):
     user_location = message.location
-    latitude = user_location.latitude
-    longitude = user_location.longitude
+    coordinates = f"{user_location.latitude}, {user_location.longitude}"
 
-    # Сохраняем координаты в переменную
-    coordinates = f"{latitude}, {longitude}"
-
-    async with state.proxy() as data:
-        data["coordinates"] = coordinates
-
-    # Сохраняем координаты в базе данных
+    # Adjust db.query call as necessary based on its type.
     db.query("UPDATE users SET coordinates = ? WHERE cid = ?", (coordinates, message.chat.id))
-
-    # Здесь вы можете добавить логику преобразования координат в адрес, когда у вас появится такая возможность
 
     await confirm(message)
     await CheckoutState.confirm.set()
+
 ##Разделение кода выше писали мы ниже писали не мы 
 
 @dp.message_handler(IsUser(), state=CheckoutState.name)
@@ -293,7 +292,7 @@ async def process_name(message: Message, state: FSMContext):
         data["name"] = message.text
         # Сохраняем имя пользователя в таблице users
         db.query("UPDATE users SET name = ? WHERE cid = ?", (message.text, message.chat.id))
-    
+
     # Переходим к следующему этапу - проверке адреса
     await check_address(data, message)
 
