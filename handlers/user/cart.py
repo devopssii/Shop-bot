@@ -241,8 +241,12 @@ async def process_use_same_address(message: Message, state: FSMContext):
 
 @dp.message_handler(IsUser(), text="Отправить новый адрес", state=CheckoutState.choose_address)
 async def process_new_address(message: Message, state: FSMContext):
-    await message.answer("Пожалуйста, отправьте вашу геолокацию.")
+    markup = ReplyKeyboardMarkup(resize_keyboard=True, selective=True)
+    location_button = KeyboardButton(text="Отправить локацию", request_location=True)
+    markup.add(location_button)
+    await message.answer("Пожалуйста, отправьте вашу геолокацию или напишите и отправьте адрес.", reply_markup=markup)
     await CheckoutState.send_location.set()
+
 
 @dp.message_handler(IsUser(), text=back_message, state=CheckoutState.name)
 async def process_name_back(message: Message, state: FSMContext):
