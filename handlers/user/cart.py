@@ -13,6 +13,8 @@ from aiogram.types import Message, Location, KeyboardButton
 import requests
 from concurrent.futures import ThreadPoolExecutor
 import asyncio
+import aiohttp
+
 
 @dp.message_handler(IsUser(), text=cart)
 async def process_cart(message: Message, state: FSMContext):
@@ -247,47 +249,125 @@ async def process_new_address(message: Message, state: FSMContext):
     await message.answer("Пожалуйста, отправьте вашу геолокацию или напишите и отправьте адрес.", reply_markup=markup)
     await CheckoutState.send_location.set()
 
-
 @dp.message_handler(IsUser(), text=back_message, state=CheckoutState.name)
 async def process_name_back(message: Message, state: FSMContext):
     await CheckoutState.check_cart.set()
     await checkout(message, state)
 
-async def get_address_from_coordinates(latitude, longitude):
-    loop = asyncio.get_event_loop()
-    with ThreadPoolExecutor() as pool:
-        url = f"https://nominatim.openstreetmap.org/reverse?format=json&lat={latitude}&lon={longitude}"
-        response = await loop.run_in_executor(pool, requests.get, url)
-        data = response.json()
-        return data.get('display_name')
+
+#async def get_address_from_coordinates(latitude, longitude):
+#    logging.info(f"Inside get_address_from_coordinates with lat: {latitude}, lon: {longitude}")
+#    loop = asyncio.get_event_loop()
+#    with ThreadPoolExecutor() as pool:
+#        try:
+            #url = f"https://nominatim.openstreetmap.org/reverse?format=json&lat={latitude}&lon={longitude}"
+#            url = f"https://maps.googleapis.com/maps/api/geocode/json?latlng={latitude},{longitude}&key=AIzaSyC6IqkTIuichNel_zCyrZcbWOaanFQ97BM"
+#            response = await loop.run_in_executor(pool, requests.get, url)
+#            logging.info(f"Response from geocode.xyz: status_code={response.status_code}, content={response.text}")
+
+#            response.raise_for_status()  # Добавим проверку статуса ответа
+#            data = response.json()
+#            logging.info(f"Received data from geocode.xyz: {data}")
+#            address = data.get('standard', {}).get('staddress')
+#            if address:
+#                logging.info(f"Extracted address: {address}")
+#                return address
+#            else:
+#                logging.warning(f"No address extracted from the data.")
+#                return None
+#        except requests.RequestException as e:  # Обрабатываем ошибки запроса
+#            logging.error(f"Error while fetching data from geocode.xyz: {e}")
+#            return None
+#        except Exception as e:  # Обрабатываем другие возможные ошибки
+#            logging.error(f"Unexpected error: {e}")
+#            return None
+
+async def get_address_from_coordinates(latitude, longitude, api_key):
+    logging.info(f"Inside get_address_from_coordinates with lat: {latitude}, lon: {longitude}")
+
+    try:
+        async with aiohttp.ClientSession() as session:
+            url = f"https://geocode-maps.yandex.ru/1.x/?apikey=8a595e00-3f23-4aae-84a0-a527f9219344&geocode={longitude},{latitude}&format=json"
+            async with session.get(url) as response:
+                response.raise_for_status()  # Проверяем статус ответа
+                data = await response.json()
+
+                logging.info(f"Received data from Yandex Maps API: {data}")
+
+                # Ваш код для извлечения адреса из данных API
+                address = None
+                try:
+                    # Получаем первый геообъект из коллекции
+                    geo_object = data['response']['GeoObjectCollection']['featureMember'][0]['GeoObject']
+                    # Извлекаем полный адрес из геообъекта
+                    address = geo_object['metaDataProperty']['GeocoderMetaData']['Address']['formatted']
+                except KeyError:
+                    logging.error("Failed to extract address from Yandex Maps API response")
+
+                return address  # Здесь возвращайте адрес, который вы извлекли
+                
+    except aiohttp.ClientError as e:
+        logging.error(f"Error while fetching data from Yandex Maps API: {e}")
+        return None
+    except Exception as e:
+        logging.error(f"Unexpected error: {e}")
+        return None
+
 
 @dp.message_handler(IsUser(), content_types=["location"], state=CheckoutState.send_location_or_text)
 async def process_user_location_from_button(message: Message, state: FSMContext):
+    logging.info("Processing location from button")
     user_location = message.location
     latitude, longitude = user_location.latitude, user_location.longitude
-    address = await get_address_from_coordinates(latitude, longitude, session)
+    logging.info(f"About to fetch address for coordinates: lat={latitude}, lon={longitude}")
+
+    logging.info("About to call get_address_from_coordinates")
+    api_key = "8a595e00-3f23-4aae-84a0-a527f9219344"
+    address = await get_address_from_coordinates(latitude, longitude, api_key)
+    if not address:
+        await message.answer("Не удалось получить адрес по вашей геолокации. Попробуйте еще раз или введите адрес вручную.")
+        return
     coordinates = f"{latitude}, {longitude}"
-
-    # Here, I assume db.query is either synchronous or an async function. Adjust as necessary.
-    db.query("UPDATE users SET address = ?, coordinates = ? WHERE cid = ?", (address, coordinates, message.chat.id))
-
+    try:
+        db.query("UPDATE users SET address = ?, coordinates = ? WHERE cid = ?", (address, coordinates, message.chat.id))
+        logging.info(f"Updated address and coordinates for cid: {message.chat.id} to address: {address} and coordinates: {coordinates}")
+    except Exception as e:
+        logging.error(f"Error while updating user data in DB: {e}")
     await confirm(message)
     await CheckoutState.confirm.set()
-
     async with state.proxy() as data:
         data["address"], data["coordinates"] = address, coordinates
 
-@dp.message_handler(IsUser(), content_types=["location"], state=CheckoutState.send_location)
+
+#@dp.message_handler(IsUser(), content_types=["location"], state=CheckoutState.send_location_or_text)
+#async def process_user_location_from_button(message: Message, state: FSMContext):
+#    logging.info("Processing location from button")
+#    user_location = message.location
+#    latitude, longitude = user_location.latitude, user_location.longitude
+#    logging.info("About to call get_address_from_coordinates")
+#    address = await get_address_from_coordinates(latitude, longitude)
+#    coordinates = f"{latitude}, {longitude}"
+
+    # Here, I assume db.query is either synchronous or an async function. Adjust as necessary.
+#    db.query("UPDATE users SET address = ?, coordinates = ? WHERE cid = ?", (address, coordinates, message.chat.id))
+
+#    await confirm(message)
+#    await CheckoutState.confirm.set()
+
+#    async with state.proxy() as data:
+#        data["address"], data["coordinates"] = address, coordinates
+
+@dp.message_handler(IsUser(), content_types=["location"], state=CheckoutState.send_location_or_text)
 async def process_user_location(message: Message, state: FSMContext):
+    logging.info("Processing location") 
     user_location = message.location
     coordinates = f"{user_location.latitude}, {user_location.longitude}"
 
-    # Adjust db.query call as necessary based on its type.
+    # Обновляем координаты пользователя в базе данных
     db.query("UPDATE users SET coordinates = ? WHERE cid = ?", (coordinates, message.chat.id))
 
-    await confirm(message)
-    await CheckoutState.confirm.set()
-
+    # Подтверждаем заказ
+    await confirm_order(message, state)
 ##Разделение кода выше писали мы ниже писали не мы 
 
 @dp.message_handler(IsUser(), state=CheckoutState.name)
