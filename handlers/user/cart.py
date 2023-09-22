@@ -14,6 +14,10 @@ import requests
 from concurrent.futures import ThreadPoolExecutor
 import asyncio
 import aiohttp
+from aiogram.dispatcher import Dispatcher
+
+dp = Dispatcher(bot)
+
 
 
 @dp.message_handler(IsUser(), text=cart)
@@ -437,7 +441,27 @@ async def confirm(message: Message, state: FSMContext):
 
         await message.answer(response_message, reply_markup=confirm_markup())
 
-@dp.message_handler(lambda message: state.get_data().get("next_step") == "confirm", state="*")
+from aiogram.dispatcher.filters import BoundFilter
+from aiogram.dispatcher.handler import ctx_data
+from aiogram.dispatcher.middlewares import BaseMiddleware
+
+async def confirm(message: Message, state: FSMContext):
+    # ... [оставляем остальную часть функции без изменений]
+
+class NextStepFilter(BoundFilter):
+    key = 'check_next_step'
+
+    def __init__(self, check_next_step):
+        self.next_step = check_next_step
+
+    async def check(self, message):
+        data = await FSMContext(dp, message.chat.id, message.from_user.id).get_data()
+        return data.get("next_step") == self.next_step
+
+# Регистрируем созданный фильтр
+dp.filters_factory.bind(NextStepFilter)
+
+@dp.message_handler(check_next_step="confirm", state="*")
 async def process_comment_and_confirm(message: Message, state: FSMContext):
     comment = message.text
     chat_id = message.chat.id
