@@ -237,7 +237,7 @@ async def process_user_address(message: Message, state: FSMContext):
 
 @dp.message_handler(IsUser(), text="Отправить на этот", state=CheckoutState.choose_address)
 async def process_use_same_address(message: Message, state: FSMContext):
-    await confirm(message)
+    await confirm(message, state)
     await CheckoutState.confirm.set()
 
 @dp.message_handler(IsUser(), text="Отправить новый адрес", state=CheckoutState.choose_address)
