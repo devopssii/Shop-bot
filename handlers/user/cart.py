@@ -19,13 +19,22 @@ from aiogram.dispatcher.filters import BoundFilter
 from aiogram.dispatcher.handler import ctx_data
 from aiogram.dispatcher.middlewares import BaseMiddleware
 
-dp = Dispatcher(bot)
+@dp.message_handler()
+async def check_cart_button_text(message: Message):
+    if message.text == "🛒 Корзина":
+        logging.info("Button text matches perfectly.")
+    else:
+        logging.warning(f"Received unexpected button text: '{message.text}'")
 
+
+@dp.message_handler(content_types=['text'])
+async def log_message_text(message: Message):
+    logging.info(f"Received message text: '{message.text}'")
 
 
 @dp.message_handler(IsUser(), text=cart)
 async def process_cart(message: Message, state: FSMContext):
-
+    logging.info("Обработчик Корзины вызван.")
     cart_data = db.fetchall(
         'SELECT * FROM cart WHERE cid=?', (message.chat.id,))
 
@@ -261,34 +270,6 @@ async def process_name_back(message: Message, state: FSMContext):
     await CheckoutState.check_cart.set()
     await checkout(message, state)
 
-
-#async def get_address_from_coordinates(latitude, longitude):
-#    logging.info(f"Inside get_address_from_coordinates with lat: {latitude}, lon: {longitude}")
-#    loop = asyncio.get_event_loop()
-#    with ThreadPoolExecutor() as pool:
-#        try:
-            #url = f"https://nominatim.openstreetmap.org/reverse?format=json&lat={latitude}&lon={longitude}"
-#            url = f"https://maps.googleapis.com/maps/api/geocode/json?latlng={latitude},{longitude}&key=AIzaSyC6IqkTIuichNel_zCyrZcbWOaanFQ97BM"
-#            response = await loop.run_in_executor(pool, requests.get, url)
-#            logging.info(f"Response from geocode.xyz: status_code={response.status_code}, content={response.text}")
-
-#            response.raise_for_status()  # Добавим проверку статуса ответа
-#            data = response.json()
-#            logging.info(f"Received data from geocode.xyz: {data}")
-#            address = data.get('standard', {}).get('staddress')
-#            if address:
-#                logging.info(f"Extracted address: {address}")
-#                return address
-#            else:
-#                logging.warning(f"No address extracted from the data.")
-#                return None
-#        except requests.RequestException as e:  # Обрабатываем ошибки запроса
-#            logging.error(f"Error while fetching data from geocode.xyz: {e}")
-#            return None
-#        except Exception as e:  # Обрабатываем другие возможные ошибки
-#            logging.error(f"Unexpected error: {e}")
-#            return None
-
 async def get_address_from_coordinates(latitude, longitude, api_key):
     logging.info(f"Inside get_address_from_coordinates with lat: {latitude}, lon: {longitude}")
 
@@ -345,24 +326,6 @@ async def process_user_location_from_button(message: Message, state: FSMContext)
     async with state.proxy() as data:
         data["address"], data["coordinates"] = address, coordinates
 
-
-#@dp.message_handler(IsUser(), content_types=["location"], state=CheckoutState.send_location_or_text)
-#async def process_user_location_from_button(message: Message, state: FSMContext):
-#    logging.info("Processing location from button")
-#    user_location = message.location
-#    latitude, longitude = user_location.latitude, user_location.longitude
-#    logging.info("About to call get_address_from_coordinates")
-#    address = await get_address_from_coordinates(latitude, longitude)
-#    coordinates = f"{latitude}, {longitude}"
-
-    # Here, I assume db.query is either synchronous or an async function. Adjust as necessary.
-#    db.query("UPDATE users SET address = ?, coordinates = ? WHERE cid = ?", (address, coordinates, message.chat.id))
-
-#    await confirm(message)
-#    await CheckoutState.confirm.set()
-
-#    async with state.proxy() as data:
-#        data["address"], data["coordinates"] = address, coordinates
 
 @dp.message_handler(IsUser(), content_types=["location"], state=CheckoutState.send_location_or_text)
 async def process_user_location(message: Message, state: FSMContext):
