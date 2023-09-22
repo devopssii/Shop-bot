@@ -14,10 +14,6 @@ import requests
 from concurrent.futures import ThreadPoolExecutor
 import asyncio
 import aiohttp
-from aiogram.dispatcher import Dispatcher
-from aiogram.dispatcher.filters import BoundFilter
-from aiogram.dispatcher.handler import ctx_data
-from aiogram.dispatcher.middlewares import BaseMiddleware
 
 @dp.message_handler()
 async def check_cart_button_text(message: Message):
@@ -370,8 +366,7 @@ async def process_address(message: Message, state: FSMContext):
     await confirm(message)
     await CheckoutState.next()
 
-
-async def confirm(message: Message, state: FSMContext):
+async def confirm(message):
     # Получение данных из текущего состояния
     async with state.proxy() as data:
         address = data.get('address', "Не указан")
@@ -379,8 +374,8 @@ async def confirm(message: Message, state: FSMContext):
         mobile = data.get('mobile', "Не указан")
         comment = data.get('comment', "Нет")
 
-        # Запись комментария в базу данных (предполагается, что у вас есть колонка comment в таблице users)
-        db.execute('UPDATE users SET comment=? WHERE chat_id=?', (comment, message.chat.id))
+        # Запись комментария в базу данных
+        db.query('UPDATE users SET comment=? WHERE cid=?', (comment, message.chat.id))
 
         # Получение данных о товарах из корзины
         cart_data = db.fetchall('SELECT * FROM cart WHERE cid=?', (message.chat.id,))
@@ -406,33 +401,6 @@ async def confirm(message: Message, state: FSMContext):
         )
 
         await message.answer(response_message, reply_markup=confirm_markup())
-
-class NextStepFilter(BoundFilter):
-    key = 'check_next_step'
-
-    def __init__(self, check_next_step):
-        self.next_step = check_next_step
-
-    async def check(self, message):
-        data = await FSMContext(dp, message.chat.id, message.from_user.id).get_data()
-        return data.get("next_step") == self.next_step
-
-# Регистрируем созданный фильтр
-dp.filters_factory.bind(NextStepFilter)
-
-@dp.message_handler(check_next_step="confirm", state="*")
-async def process_comment_and_confirm(message: Message, state: FSMContext):
-    comment = message.text
-    chat_id = message.chat.id
-
-    async with state.proxy() as data:
-        data['comment'] = comment
-        data.pop("next_step", None)  # Удаляем метку следующего шага
-
-    # Обновляем информацию о пользователе в базе данных
-    db.execute('UPDATE users SET comment=? WHERE chat_id=?', (comment, chat_id))
-
-    await confirm(message, state)
 
 
 @dp.message_handler(IsUser(), lambda message: message.text not in [confirm_message, back_message], state=CheckoutState.confirm)
