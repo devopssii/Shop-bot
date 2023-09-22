@@ -203,7 +203,7 @@ async def process_check_cart_all_right(message: Message, state: FSMContext):
 async def process_user_mobile_from_text(message: Message, state: FSMContext):
     mobile = message.text
     db.query("UPDATE users SET mobile = ? WHERE cid = ?", (mobile, message.chat.id))
-    await confirm(message)  # Метод для подтверждения заказа
+    await confirm(message, state)  # Метод для подтверждения заказа
     await CheckoutState.confirm.set()
 
 # Обработчик для сохранения мобильного номера из контакта
@@ -212,7 +212,7 @@ async def process_user_mobile_from_contact(message: Message, state: FSMContext):
     contact = message.contact
     mobile = contact.phone_number
     db.query("UPDATE users SET mobile = ? WHERE cid = ?", (mobile, message.chat.id))
-    await confirm(message)  # Метод для подтверждения заказа
+    await confirm(message, state)  # Метод для подтверждения заказа
     await CheckoutState.confirm.set()
 
 # Обработчик для подтверждения или изменения мобильного номера
@@ -247,12 +247,40 @@ async def process_new_address(message: Message, state: FSMContext):
     location_button = KeyboardButton(text="Отправить локацию", request_location=True)
     markup.add(location_button)
     await message.answer("Пожалуйста, отправьте вашу геолокацию или напишите и отправьте адрес.", reply_markup=markup)
-    await CheckoutState.send_location.set()
+    await CheckoutState.send_location_or_text.set()  # Изменено состояние
 
 @dp.message_handler(IsUser(), text=back_message, state=CheckoutState.name)
 async def process_name_back(message: Message, state: FSMContext):
     await CheckoutState.check_cart.set()
     await checkout(message, state)
+
+
+#async def get_address_from_coordinates(latitude, longitude):
+#    logging.info(f"Inside get_address_from_coordinates with lat: {latitude}, lon: {longitude}")
+#    loop = asyncio.get_event_loop()
+#    with ThreadPoolExecutor() as pool:
+#        try:
+            #url = f"https://nominatim.openstreetmap.org/reverse?format=json&lat={latitude}&lon={longitude}"
+#            url = f"https://maps.googleapis.com/maps/api/geocode/json?latlng={latitude},{longitude}&key=AIzaSyC6IqkTIuichNel_zCyrZcbWOaanFQ97BM"
+#            response = await loop.run_in_executor(pool, requests.get, url)
+#            logging.info(f"Response from geocode.xyz: status_code={response.status_code}, content={response.text}")
+
+#            response.raise_for_status()  # Добавим проверку статуса ответа
+#            data = response.json()
+#            logging.info(f"Received data from geocode.xyz: {data}")
+#            address = data.get('standard', {}).get('staddress')
+#            if address:
+#                logging.info(f"Extracted address: {address}")
+#                return address
+#            else:
+#                logging.warning(f"No address extracted from the data.")
+#                return None
+#        except requests.RequestException as e:  # Обрабатываем ошибки запроса
+#            logging.error(f"Error while fetching data from geocode.xyz: {e}")
+#            return None
+#        except Exception as e:  # Обрабатываем другие возможные ошибки
+#            logging.error(f"Unexpected error: {e}")
+#            return None
 
 async def get_address_from_coordinates(latitude, longitude, api_key):
     logging.info(f"Inside get_address_from_coordinates with lat: {latitude}, lon: {longitude}")
@@ -305,10 +333,29 @@ async def process_user_location_from_button(message: Message, state: FSMContext)
         logging.info(f"Updated address and coordinates for cid: {message.chat.id} to address: {address} and coordinates: {coordinates}")
     except Exception as e:
         logging.error(f"Error while updating user data in DB: {e}")
-    await confirm(message)
+    await confirm(message, state)
     await CheckoutState.confirm.set()
     async with state.proxy() as data:
         data["address"], data["coordinates"] = address, coordinates
+
+
+#@dp.message_handler(IsUser(), content_types=["location"], state=CheckoutState.send_location_or_text)
+#async def process_user_location_from_button(message: Message, state: FSMContext):
+#    logging.info("Processing location from button")
+#    user_location = message.location
+#    latitude, longitude = user_location.latitude, user_location.longitude
+#    logging.info("About to call get_address_from_coordinates")
+#    address = await get_address_from_coordinates(latitude, longitude)
+#    coordinates = f"{latitude}, {longitude}"
+
+    # Here, I assume db.query is either synchronous or an async function. Adjust as necessary.
+#    db.query("UPDATE users SET address = ?, coordinates = ? WHERE cid = ?", (address, coordinates, message.chat.id))
+
+#    await confirm(message)
+#    await CheckoutState.confirm.set()
+
+#    async with state.proxy() as data:
+#        data["address"], data["coordinates"] = address, coordinates
 
 @dp.message_handler(IsUser(), content_types=["location"], state=CheckoutState.send_location_or_text)
 async def process_user_location(message: Message, state: FSMContext):
@@ -354,10 +401,55 @@ async def process_address(message: Message, state: FSMContext):
     await CheckoutState.next()
 
 
-async def confirm(message):
+async def confirm(message: Message, state: FSMContext):
+    # Получение данных из текущего состояния
+    async with state.proxy() as data:
+        address = data.get('address', "Не указан")
+        name = data.get('name', "Не указан")
+        mobile = data.get('mobile', "Не указан")
+        comment = data.get('comment', "Нет")
 
-    await message.answer('Убедитесь, что все правильно оформлено и подтвердите заказ.',
-                         reply_markup=confirm_markup())
+        # Запись комментария в базу данных (предполагается, что у вас есть колонка comment в таблице users)
+        db.execute('UPDATE users SET comment=? WHERE chat_id=?', (comment, message.chat.id))
+
+        # Получение данных о товарах из корзины
+        cart_data = db.fetchall('SELECT * FROM cart WHERE cid=?', (message.chat.id,))
+
+        cart_details = []
+        total_price = 0
+        for _, idx, quantity in cart_data:
+            product = db.fetchone('SELECT * FROM products WHERE idx=?', (idx,))
+            if product:
+                _, title, _, _, price, _ = product
+                cart_details.append(f"{title} - {quantity}шт. = {price * quantity}₽")
+                total_price += price * quantity
+
+        # Собираем все данные в одно сообщение
+        response_message = (
+            "Подтверждение заказа:\n\n"
+            "Товары:\n" + '\n'.join(cart_details) + f"\n\nОбщая сумма: {total_price}₽\n"
+            f"Адрес: {address}\n"
+            f"Имя: {name}\n"
+            f"Телефон: {mobile}\n"
+            f"Комментарий: {comment}\n\n"
+            "Убедитесь, что все правильно оформлено и подтвердите заказ."
+        )
+
+        await message.answer(response_message, reply_markup=confirm_markup())
+
+@dp.message_handler(lambda message: state.get_data().get("next_step") == "confirm", state="*")
+async def process_comment_and_confirm(message: Message, state: FSMContext):
+    comment = message.text
+    chat_id = message.chat.id
+
+    async with state.proxy() as data:
+        data['comment'] = comment
+        data.pop("next_step", None)  # Удаляем метку следующего шага
+
+    # Обновляем информацию о пользователе в базе данных
+    db.execute('UPDATE users SET comment=? WHERE chat_id=?', (comment, chat_id))
+
+    await confirm(message, state)
 
 
 @dp.message_handler(IsUser(), lambda message: message.text not in [confirm_message, back_message], state=CheckoutState.confirm)
@@ -399,7 +491,6 @@ async def process_user_new_address_location(message: Message, state: FSMContext)
         await CheckoutState.confirm.set()
     else:
         await message.answer("Не удалось получить адрес на основе геолокации. Пожалуйста, попробуйте еще раз или укажите адрес текстовым сообщением.")
-
 
 #Изменение адреса
 #Подтверждени и создание заказа в таблицу orders 
