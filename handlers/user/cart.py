@@ -151,7 +151,7 @@ async def check_name(data, message):
         return False
     return True
 
-async def check_address(data, message):
+async def check_address(data, message, state):
     if data["address"]:
         markup = ReplyKeyboardMarkup(resize_keyboard=True, selective=True)
         markup.add("Отправить на этот")
@@ -165,7 +165,7 @@ async def check_address(data, message):
         await message.answer("Отправьте свою локацию или напишите и отправьте адрес.", reply_markup=markup)
         await CheckoutState.send_location_or_text.set()
 
-async def check_mobile(data, message):
+async def check_mobile(data, message, state):
     if not data["mobile"]:
         markup = ReplyKeyboardMarkup(resize_keyboard=True, selective=True)
         phone_button = KeyboardButton(text="Отправить контакт", request_contact=True)
@@ -177,7 +177,7 @@ async def check_mobile(data, message):
         markup.add("Номер верный")
         markup.add("Отправить контакт")
         await message.answer(f'Подтвердите номер для связи с курьером: {data["mobile"]}\nЧтобы изменить номер, отправьте сообщение с ним или поделитесь контактом.', reply_markup=markup)
-        await CheckoutState.confirm_mobile.set()
+        await check_address(data, message, state)
 
 @dp.message_handler(IsUser(), text=all_right_message, state=CheckoutState.check_cart)
 async def process_check_cart_all_right(message: Message, state: FSMContext):
@@ -188,14 +188,22 @@ async def process_check_cart_all_right(message: Message, state: FSMContext):
             data["address"] = user_data[3]
             data["mobile"] = user_data[5]
 
-            if not await check_name(data, message): 
+            if not await check_name(data, message):
                 return
-            if not await check_address(data, message):
+            if not await check_address(data, message, state):
                 return
-            await check_mobile(data, message)
+            await check_mobile(data, message, state)
         else:
             await CheckoutState.name.set()
             await message.answer('Укажите свое имя.', reply_markup=back_markup())
+
+@dp.message_handler(IsUser(), state=CheckoutState.name)
+async def process_name_for_new_user(message: Message, state: FSMContext):
+    async with state.proxy() as data:
+        data["name"] = message.text
+        # Сохраняем имя пользователя в таблице users
+        db.query("UPDATE users SET name = ? WHERE cid = ?", (message.text, message.chat.id))
+        await check_mobile(data, message, state)  # Добавлен запрос на номер телефона после указания имени
 
 # Обработчик для сохранения мобильного номера из сообщения
 @dp.message_handler(IsUser(), content_types=["text"], state=CheckoutState.send_contact_or_text)
@@ -218,7 +226,7 @@ async def process_user_mobile_from_contact(message: Message, state: FSMContext):
 @dp.message_handler(IsUser(), text=["Номер верный", "Отправить контакт"], state=CheckoutState.confirm_mobile)
 async def process_confirm_or_change_mobile(message: Message, state: FSMContext):
     if message.text == "Номер верный":
-        await confirm(message)
+        await confirm(message, state)
         await CheckoutState.confirm.set()
     else:
         markup = ReplyKeyboardMarkup(resize_keyboard=True, selective=True)
@@ -365,40 +373,37 @@ async def process_comment(message: Message, state: FSMContext):
 
 
 async def confirm(message, state: FSMContext):
-    # Получение данных из текущего состояния
-    async with state.proxy() as data:
-        address = data.get('address', "Не указан")
-        name = data.get('name', "Не указан")
-        mobile = data.get('mobile', "Не указан")
-        comment = data.get('comment', "Нет")
+    # Получение данных о пользователе из базы данных
+    user_data = db.fetchone('SELECT address, name, mobile, comment FROM users WHERE cid=?', (message.chat.id,))
+    if user_data:
+        address, name, mobile, comment = user_data
+    else:
+        address, name, mobile, comment = "Не указан", "Не указан", "Не указан", "Нет"
 
-        # Запись комментария в базу данных
-#        db.query('UPDATE users SET comment=? WHERE cid=?', (comment, message.chat.id))
+    # Получение данных о товарах из корзины
+    cart_data = db.fetchall('SELECT * FROM cart WHERE cid=?', (message.chat.id,))
 
-        # Получение данных о товарах из корзины
-        cart_data = db.fetchall('SELECT * FROM cart WHERE cid=?', (message.chat.id,))
+    cart_details = []
+    total_price = 0
+    for _, idx, quantity in cart_data:
+        product = db.fetchone('SELECT * FROM products WHERE idx=?', (idx,))
+        if product:
+            _, title, _, _, price, _ = product
+            cart_details.append(f"{title} - {quantity}шт. = {price * quantity}₽")
+            total_price += price * quantity
 
-        cart_details = []
-        total_price = 0
-        for _, idx, quantity in cart_data:
-            product = db.fetchone('SELECT * FROM products WHERE idx=?', (idx,))
-            if product:
-                _, title, _, _, price, _ = product
-                cart_details.append(f"{title} - {quantity}шт. = {price * quantity}₽")
-                total_price += price * quantity
+    # Собираем все данные в одно сообщение
+    response_message = (
+        "Подтверждение заказа:\n\n"
+        "Товары:\n" + '\n'.join(cart_details) + f"\n\nОбщая сумма: {total_price}₽\n"
+        f"Адрес: {address}\n"
+        f"Имя: {name}\n"
+        f"Телефон: {mobile}\n"
+        f"Комментарий: {comment}\n\n"
+        "Убедитесь, что все правильно оформлено и подтвердите заказ."
+    )
 
-        # Собираем все данные в одно сообщение
-        response_message = (
-            "Подтверждение заказа:\n\n"
-            "Товары:\n" + '\n'.join(cart_details) + f"\n\nОбщая сумма: {total_price}₽\n"
-            f"Адрес: {address}\n"
-            f"Имя: {name}\n"
-            f"Телефон: {mobile}\n"
-            f"Комментарий: {comment}\n\n"
-            "Убедитесь, что все правильно оформлено и подтвердите заказ."
-        )
-
-        await message.answer(response_message, reply_markup=confirm_markup())
+    await message.answer(response_message, reply_markup=confirm_markup())
 
 
 @dp.message_handler(IsUser(), lambda message: message.text not in [confirm_message, back_message], state=CheckoutState.confirm)
