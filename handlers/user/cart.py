@@ -192,7 +192,8 @@ async def process_check_cart_all_right(message: Message, state: FSMContext):
                 return
             if not await check_address(data, message, state):
                 return
-            await check_mobile(data, message, state)
+            if not await check_mobile(data, message, state):
+                return
         else:
             await CheckoutState.name.set()
             await message.answer('Укажите свое имя.', reply_markup=back_markup())
@@ -205,22 +206,24 @@ async def process_name_for_new_user(message: Message, state: FSMContext):
         db.query("UPDATE users SET name = ? WHERE cid = ?", (message.text, message.chat.id))
         await check_mobile(data, message, state)  # Добавлен запрос на номер телефона после указания имени
 
-# Обработчик для сохранения мобильного номера из сообщения
+# Обработчик для сохранения мобильного номера из текстового сообщения
 @dp.message_handler(IsUser(), content_types=["text"], state=CheckoutState.send_contact_or_text)
 async def process_user_mobile_from_text(message: Message, state: FSMContext):
-    mobile = message.text
-    db.query("UPDATE users SET mobile = ? WHERE cid = ?", (mobile, message.chat.id))
-    await confirm(message, state)  # Метод для подтверждения заказа
-    await CheckoutState.confirm.set()
+    async with state.proxy() as data:
+        mobile = message.text
+        db.query("UPDATE users SET mobile = ? WHERE cid = ?", (mobile, message.chat.id))
+        await check_address(data, message, state)
+        await CheckoutState.confirm.set()
 
 # Обработчик для сохранения мобильного номера из контакта
 @dp.message_handler(IsUser(), content_types=["contact"], state=CheckoutState.send_contact_or_text)
 async def process_user_mobile_from_contact(message: Message, state: FSMContext):
-    contact = message.contact
-    mobile = contact.phone_number
-    db.query("UPDATE users SET mobile = ? WHERE cid = ?", (mobile, message.chat.id))
-    await confirm(message, state)  # Метод для подтверждения заказа
-    await CheckoutState.confirm.set()
+    async with state.proxy() as data:
+        contact = message.contact
+        mobile = contact.phone_number
+        db.query("UPDATE users SET mobile = ? WHERE cid = ?", (mobile, message.chat.id))
+        await check_address(data, message, state)
+        await CheckoutState.confirm.set()
 
 # Обработчик для подтверждения или изменения мобильного номера
 @dp.message_handler(IsUser(), text=["Номер верный", "Отправить контакт"], state=CheckoutState.confirm_mobile)
