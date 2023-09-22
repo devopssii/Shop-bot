@@ -163,7 +163,7 @@ async def check_address(data, message, state):
         location_button = KeyboardButton(text="Отправить локацию", request_location=True)
         markup.add(location_button)
         await message.answer("Отправьте свою локацию или напишите и отправьте адрес.", reply_markup=markup)
-        await CheckoutState.send_location_or_text.set()
+        await state.update_data(state=CheckoutState.confirm)
 
 async def check_mobile(data, message, state):
     if not data["mobile"]:
@@ -175,9 +175,9 @@ async def check_mobile(data, message, state):
     else:
         markup = ReplyKeyboardMarkup(resize_keyboard=True, selective=True)
         markup.add("Номер верный")
-        markup.add("Отправить контакт")
-        await message.answer(f'Подтвердите номер для связи с курьером: {data["mobile"]}\nЧтобы изменить номер, отправьте сообщение с ним или поделитесь контактом.', reply_markup=markup)
-        await check_address(data, message, state)
+        markup.add("Изменить номер")
+        await message.answer(f'Подтвердите номер для связи с курьером: {data["mobile"]}\nЧтобы изменить номер, выберите "Изменить номер".', reply_markup=markup)
+        await confirm(message, state)
 
 @dp.message_handler(IsUser(), text=all_right_message, state=CheckoutState.check_cart)
 async def process_check_cart_all_right(message: Message, state: FSMContext):
@@ -207,7 +207,7 @@ async def process_name_for_new_user(message: Message, state: FSMContext):
         await check_mobile(data, message, state)  # Добавлен запрос на номер телефона после указания имени
 
 # Обработчик для сохранения мобильного номера из текстового сообщения
-@dp.message_handler(IsUser(), content_types=["text"], state=CheckoutState.send_contact_or_text)
+@dp.message_handler(IsUser(), content_types=["text"], state=FSMContext)
 async def process_user_mobile_from_text(message: Message, state: FSMContext):
     async with state.proxy() as data:
         mobile = message.text
@@ -216,7 +216,7 @@ async def process_user_mobile_from_text(message: Message, state: FSMContext):
         await CheckoutState.confirm.set()
 
 # Обработчик для сохранения мобильного номера из контакта
-@dp.message_handler(IsUser(), content_types=["contact"], state=CheckoutState.send_contact_or_text)
+@dp.message_handler(IsUser(), content_types=["contact"], state=FSMContext)
 async def process_user_mobile_from_contact(message: Message, state: FSMContext):
     async with state.proxy() as data:
         contact = message.contact
@@ -228,7 +228,7 @@ async def process_user_mobile_from_contact(message: Message, state: FSMContext):
 # Обработчик для подтверждения или изменения мобильного номера
 @dp.message_handler(IsUser(), text=["Номер верный", "Отправить контакт"], state=CheckoutState.confirm_mobile)
 async def process_confirm_or_change_mobile(message: Message, state: FSMContext):
-    if message.text == "Номер верный":
+    if message.text == "Телефон верный":
         await confirm(message, state)
         await CheckoutState.confirm.set()
     else:
@@ -244,7 +244,7 @@ async def process_user_address(message: Message, state: FSMContext):
     db.query("UPDATE users SET address = ? WHERE cid = ?", (address, message.chat.id))
     async with state.proxy() as data:
         data["address"] = address
-        await confirm(message, state)  # Проверяем номер телефона
+        await check_mobile(data, message, state)  # Проверяем номер телефона
 
 @dp.message_handler(IsUser(), text="Отправить на этот", state=CheckoutState.choose_address)
 async def process_use_same_address(message: Message, state: FSMContext):
@@ -321,17 +321,6 @@ async def process_user_location_from_button(message: Message, state: FSMContext)
         data["address"], data["coordinates"] = address, coordinates
 
 
-@dp.message_handler(IsUser(), content_types=["location"], state=CheckoutState.send_location_or_text)
-async def process_user_location(message: Message, state: FSMContext):
-    logging.info("Processing location") 
-    user_location = message.location
-    coordinates = f"{user_location.latitude}, {user_location.longitude}"
-
-    # Обновляем координаты пользователя в базе данных
-    db.query("UPDATE users SET coordinates = ? WHERE cid = ?", (coordinates, message.chat.id))
-
-    # Подтверждаем заказ
-    await confirm(message, state)
 ##Разделение кода выше писали мы ниже писали не мы 
 
 @dp.message_handler(IsUser(), state=CheckoutState.name)
@@ -409,19 +398,11 @@ async def confirm(message, state: FSMContext):
     await message.answer(response_message, reply_markup=confirm_markup())
 
 
-@dp.message_handler(IsUser(), lambda message: message.text not in [confirm_message, back_message], state=CheckoutState.confirm)
-async def process_confirm_invalid(message: Message):
-    await message.reply('Такого варианта не было.')
+#@dp.message_handler(IsUser(), lambda message: message.text not in [confirm_message, back_message], state=CheckoutState.confirm)
+#async def process_confirm_invalid(message: Message):
+#    await message.reply('Такого варианта не было.')
 
 
-@dp.message_handler(IsUser(), text=back_message, state=CheckoutState.confirm)
-async def process_confirm(message: Message, state: FSMContext):
-
-    await CheckoutState.address.set()
-
-    async with state.proxy() as data:
-        await message.answer('Изменить адрес с <b>' + data['address'] + '</b>?',
-                             reply_markup=back_markup())
 ##Разделение кода выше писали НЕ МЫ ниже писали МЫ
 #Изменение адреса
 @dp.message_handler(IsUser(), state=CheckoutState.send_location_or_text, content_types=["text"])
