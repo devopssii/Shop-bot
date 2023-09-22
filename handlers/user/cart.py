@@ -165,17 +165,19 @@ async def check_address(data, message, state):
         await message.answer("Отправьте свою локацию или напишите и отправьте адрес.", reply_markup=markup)
         await CheckoutState.send_location_or_text.set()
 
-@dp.message_handler(lambda message: message.text == "Подтвердить номер" or message.contact, state='*')
-async def check_mobile(message: types.Message, state: FSMContext):
-    async with state.proxy() as data:
-        if message.text == "Подтвердить номер" or (message.contact and message.contact.phone_number):
-            # Здесь можно добавить логику для обработки номера телефона
-            await message.answer("Спасибо, ваш номер подтверждён.")
-            # Далее можно перейти к следующему этапу
-        else:
-            markup = types.ReplyKeyboardMarkup(resize_keyboard=True, selective=True)
-            markup.add(types.KeyboardButton("Отправить контакт", request_contact=True))
-            await message.answer("Пожалуйста, укажите свой номер телефона или поделитесь контактом.", reply_markup=markup)
+async def check_mobile(data, message, state):
+    if not data["mobile"]:
+        markup = ReplyKeyboardMarkup(resize_keyboard=True, selective=True)
+        phone_button = KeyboardButton(text="Отправить контакт", request_contact=True)
+        markup.add(phone_button)
+        await message.answer("Пожалуйста, укажите свой номер телефона или поделитесь контактом.", reply_markup=markup)
+        await CheckoutState.send_contact_or_text.set()
+    else:
+        markup = ReplyKeyboardMarkup(resize_keyboard=True, selective=True)
+        markup.add("Номер верный")
+        markup.add("Отправить контакт")
+        await message.answer(f'Подтвердите номер для связи с курьером: {data["mobile"]}\nЧтобы изменить номер, отправьте сообщение с ним или поделитесь контактом.', reply_markup=markup)
+        await check_address(data, message, state)
 
 @dp.message_handler(IsUser(), text=all_right_message, state=CheckoutState.check_cart)
 async def process_check_cart_all_right(message: Message, state: FSMContext):
@@ -242,7 +244,7 @@ async def process_user_address(message: Message, state: FSMContext):
     db.query("UPDATE users SET address = ? WHERE cid = ?", (address, message.chat.id))
     async with state.proxy() as data:
         data["address"] = address
-        await check_mobile(message, state)
+        await confirm(message, state)  # Проверяем номер телефона
 
 @dp.message_handler(IsUser(), text="Отправить на этот", state=CheckoutState.choose_address)
 async def process_use_same_address(message: Message, state: FSMContext):
