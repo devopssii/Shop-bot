@@ -15,6 +15,9 @@ from concurrent.futures import ThreadPoolExecutor
 import asyncio
 import aiohttp
 from aiogram.dispatcher import Dispatcher
+from aiogram.dispatcher.filters import BoundFilter
+from aiogram.dispatcher.handler import ctx_data
+from aiogram.dispatcher.middlewares import BaseMiddleware
 
 dp = Dispatcher(bot)
 
@@ -440,10 +443,6 @@ async def confirm(message: Message, state: FSMContext):
         )
 
         await message.answer(response_message, reply_markup=confirm_markup())
-
-from aiogram.dispatcher.filters import BoundFilter
-from aiogram.dispatcher.handler import ctx_data
-from aiogram.dispatcher.middlewares import BaseMiddleware
 
 class NextStepFilter(BoundFilter):
     key = 'check_next_step'
