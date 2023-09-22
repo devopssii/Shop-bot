@@ -445,9 +445,6 @@ from aiogram.dispatcher.filters import BoundFilter
 from aiogram.dispatcher.handler import ctx_data
 from aiogram.dispatcher.middlewares import BaseMiddleware
 
-async def confirm(message: Message, state: FSMContext):
-    # ... [оставляем остальную часть функции без изменений]
-
 class NextStepFilter(BoundFilter):
     key = 'check_next_step'
 
