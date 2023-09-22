@@ -421,6 +421,37 @@ async def process_confirm(message: Message, state: FSMContext):
         await message.answer('Изменить адрес с <b>' + data['address'] + '</b>?',
                              reply_markup=back_markup())
 ##Разделение кода выше писали НЕ МЫ ниже писали МЫ
+#Изменение адреса
+@dp.message_handler(IsUser(), text="Отправить новый адрес", state=CheckoutState.choose_address)
+async def process_new_address(message: Message, state: FSMContext):
+    await message.answer("Пожалуйста, отправьте новый адрес текстовым сообщением или геолокацией.")
+    await CheckoutState.send_new_address.set()
+
+@dp.message_handler(IsUser(), state=CheckoutState.send_new_address, content_types=["text"])
+async def process_user_new_address_text(message: Message, state: FSMContext):
+    async with state.proxy() as data:
+        data["address"] = message.text
+        # Теперь вы можете сохранить новый адрес в базе данных или как-то ещё его обработать
+    await confirm(message)
+    await CheckoutState.confirm.set()
+
+@dp.message_handler(IsUser(), state=CheckoutState.send_new_address, content_types=["location"])
+async def process_user_new_address_location(message: Message, state: FSMContext):
+    user_location = message.location
+    latitude, longitude = user_location.latitude, user_location.longitude
+    # Здесь вы можете использовать полученные координаты, чтобы определить адрес
+    address = await get_address_from_coordinates(latitude, longitude)  # Например, функцией, которую вы уже имеете
+    if address:
+        async with state.proxy() as data:
+            data["address"] = address
+            data["coordinates"] = f"{latitude}, {longitude}"
+            # Теперь вы можете сохранить новый адрес и координаты в базе данных или как-то ещё его обработать
+        await confirm(message)
+        await CheckoutState.confirm.set()
+    else:
+        await message.answer("Не удалось получить адрес на основе геолокации. Пожалуйста, попробуйте ещё раз или укажите адрес текстовым сообщением.")
+
+#Изменение адреса
 #Подтверждени и создание заказа в таблицу orders 
 @dp.message_handler(IsUser(), text=confirm_message, state=CheckoutState.confirm)
 async def process_confirm(message: Message, state: FSMContext):
