@@ -15,22 +15,9 @@ from concurrent.futures import ThreadPoolExecutor
 import asyncio
 import aiohttp
 
-@dp.message_handler()
-async def check_cart_button_text(message: Message):
-    if message.text == "🛒 Корзина":
-        logging.info("Button text matches perfectly.")
-    else:
-        logging.warning(f"Received unexpected button text: '{message.text}'")
-
-
-@dp.message_handler(content_types=['text'])
-async def log_message_text(message: Message):
-    logging.info(f"Received message text: '{message.text}'")
-
 
 @dp.message_handler(IsUser(), text=cart)
 async def process_cart(message: Message, state: FSMContext):
-    logging.info("Обработчик Корзины вызван.")
     cart_data = db.fetchall(
         'SELECT * FROM cart WHERE cid=?', (message.chat.id,))
 
@@ -363,10 +350,21 @@ async def process_address(message: Message, state: FSMContext):
     async with state.proxy() as data:
         data['address'] = message.text
 
-    await confirm(message)
+
+    await message.answer("Напишите комментарий (этаж, квартира, домофон) или напишите, если нет комментария для доставки.")
+    await CheckoutState.comment.set()
+
+@dp.message_handler(IsUser(), state=CheckoutState.comment)
+async def process_comment(message: Message, state: FSMContext):
+
+    async with state.proxy() as data:
+        data['comment'] = message.text
+
+    await confirm(message, state)
     await CheckoutState.next()
 
-async def confirm(message):
+
+async def confirm(message, state: FSMContext):
     # Получение данных из текущего состояния
     async with state.proxy() as data:
         address = data.get('address', "Не указан")
@@ -375,7 +373,7 @@ async def confirm(message):
         comment = data.get('comment', "Нет")
 
         # Запись комментария в базу данных
-        db.query('UPDATE users SET comment=? WHERE cid=?', (comment, message.chat.id))
+#        db.query('UPDATE users SET comment=? WHERE cid=?', (comment, message.chat.id))
 
         # Получение данных о товарах из корзины
         cart_data = db.fetchall('SELECT * FROM cart WHERE cid=?', (message.chat.id,))
