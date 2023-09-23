@@ -155,7 +155,6 @@ async def check_name(data, message):
         await message.answer('Укажите свой номер телефона или поделитесь контактом.', reply_markup=contact_markup())
         return True
 
-
 @dp.message_handler(IsUser(), state=CheckoutState.check_cart)
 async def process_check_cart_all_right(message: Message, state: FSMContext):
     user_data = db.fetchone("SELECT name FROM users WHERE cid=?", (message.chat.id,))
@@ -189,6 +188,7 @@ def location_markup():
     markup.add(location_button)
     return markup
 
+
 @dp.message_handler(IsUser(), content_types=["text", "location"], state=CheckoutState.address)
 async def process_address(message: Message, state: FSMContext):
     if message.content_type == "location":
@@ -208,6 +208,7 @@ async def process_comment(message: Message, state: FSMContext):
     db.query("UPDATE users SET comment = ? WHERE cid = ?", (message.text, message.chat.id))
     await CheckoutState.confirm.set()  # Устанавливаем следующее состояние - подтверждение
     await confirm(message, state)  # Вызываем функцию для подтверждения
+
 
 async def get_address_from_coordinates(latitude, longitude, api_key):
     logging.info(f"Inside get_address_from_coordinates with lat: {latitude}, lon: {longitude}")
@@ -239,32 +240,6 @@ async def get_address_from_coordinates(latitude, longitude, api_key):
     except Exception as e:
         logging.error(f"Unexpected error: {e}")
         return None
-
-
-@dp.message_handler(IsUser(), content_types=["location"], state=CheckoutState.send_location_or_text)
-async def process_user_location_from_button(message: Message, state: FSMContext):
-    logging.info("Processing location from button")
-    user_location = message.location
-    latitude, longitude = user_location.latitude, user_location.longitude
-    logging.info(f"About to fetch address for coordinates: lat={latitude}, lon={longitude}")
-
-    logging.info("About to call get_address_from_coordinates")
-    api_key = "8a595e00-3f23-4aae-84a0-a527f9219344"
-    address = await get_address_from_coordinates(latitude, longitude, api_key)
-    if not address:
-        await message.answer("Не удалось получить адрес по вашей геолокации. Попробуйте еще раз или введите адрес вручную.")
-        return
-    coordinates = f"{latitude}, {longitude}"
-    try:
-        db.query("UPDATE users SET address = ?, coordinates = ? WHERE cid = ?", (address, coordinates, message.chat.id))
-        logging.info(f"Updated address and coordinates for cid: {message.chat.id} to address: {address} and coordinates: {coordinates}")
-    except Exception as e:
-        logging.error(f"Error while updating user data in DB: {e}")
-    await confirm(message, state)
-    await CheckoutState.confirm.set()
-    async with state.proxy() as data:
-        data["address"], data["coordinates"] = address, coordinates
-
 
 ##Разделение кода выше писали мы ниже писали не мы 
 
