@@ -183,7 +183,8 @@ async def process_address(message: Message, state: FSMContext):
     if message.content_type == "location":
         user_location = message.location
         latitude, longitude = user_location.latitude, user_location.longitude
-        address = await get_address_from_coordinates(latitude, longitude)
+        api_key = "8a595e00-3f23-4aae-84a0-a527f9219344"
+        address = await get_address_from_coordinates(latitude, longitude, api_key)
     else:
         address = message.text
 
