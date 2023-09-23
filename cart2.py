@@ -178,6 +178,12 @@ async def process_mobile(message: Message, state: FSMContext):
     await CheckoutState.address.set()
     await message.answer('Пожалуйста, отправьте вашу геолокацию или напишите и отправьте адрес.', reply_markup=location_markup())
 
+def location_markup():
+    markup = ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True)
+    location_button = KeyboardButton(text="Отправить геолокацию", request_location=True)
+    markup.add(location_button)
+    return markup
+
 @dp.message_handler(IsUser(), content_types=["text", "location"], state=CheckoutState.address)
 async def process_address(message: Message, state: FSMContext):
     if message.content_type == "location":
