@@ -163,13 +163,22 @@ async def process_check_cart_all_right(message: Message, state: FSMContext):
         await message.answer('Укажите свое имя.', reply_markup=back_markup())
     else:
         await CheckoutState.mobile.set()  # Если имя есть, переходим к следующему этапу - запросу номера телефона
+        print("Moving to mobile state")  # Добавлено логирование
         await message.answer('Укажите свой номер телефона или поделитесь контактом.', reply_markup=contact_markup())
 
 @dp.message_handler(IsUser(), state=CheckoutState.name)
 async def process_name(message: Message, state: FSMContext):
     db.query("UPDATE users SET name = ? WHERE cid = ?", (message.text, message.chat.id))
     await CheckoutState.mobile.set()
+    print("Moving to mobile state after name input")  # Добавлено логирование
     await message.answer('Укажите свой номер телефона или поделитесь контактом.', reply_markup=contact_markup())
+
+def contact_markup():
+    markup = types.ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True)
+    button = types.KeyboardButton("Отправить номер телефона", request_contact=True)
+    markup.add(button)
+    return markup
+
 
 @dp.message_handler(IsUser(), content_types=["text", "contact"], state=CheckoutState.mobile)
 async def process_mobile(message: Message, state: FSMContext):
@@ -240,6 +249,32 @@ async def get_address_from_coordinates(latitude, longitude, api_key):
     except Exception as e:
         logging.error(f"Unexpected error: {e}")
         return None
+
+
+#@dp.message_handler(IsUser(), content_types=["location"], state=CheckoutState.send_location_or_text)
+#async def process_user_location_from_button(message: Message, state: FSMContext):
+#    logging.info("Processing location from button")
+#    user_location = message.location
+#    latitude, longitude = user_location.latitude, user_location.longitude
+#    logging.info(f"About to fetch address for coordinates: lat={latitude}, lon={longitude}")
+
+#    logging.info("About to call get_address_from_coordinates")
+#    api_key = "8a595e00-3f23-4aae-84a0-a527f9219344"
+#    address = await get_address_from_coordinates(latitude, longitude, api_key)
+#    if not address:
+#        await message.answer("Не удалось получить адрес по вашей геолокации. Попробуйте еще раз или введите адрес вручную.")
+#        return
+#    coordinates = f"{latitude}, {longitude}"
+#    try:
+#        db.query("UPDATE users SET address = ?, coordinates = ? WHERE cid = ?", (address, coordinates, message.chat.id))
+#        logging.info(f"Updated address and coordinates for cid: {message.chat.id} to address: {address} and coordinates: {coordinates}")
+#    except Exception as e:
+#        logging.error(f"Error while updating user data in DB: {e}")
+#    await confirm(message, state)
+#    await CheckoutState.confirm.set()
+#    async with state.proxy() as data:
+#        data["address"], data["coordinates"] = address, coordinates
+
 
 ##Разделение кода выше писали мы ниже писали не мы 
 
