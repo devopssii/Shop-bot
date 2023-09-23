@@ -163,7 +163,7 @@ async def check_address(data, message, state):
         location_button = KeyboardButton(text="Отправить локацию", request_location=True)
         markup.add(location_button)
         await message.answer("Отправьте свою локацию или напишите и отправьте адрес.", reply_markup=markup)
-        await state.update_data(state=CheckoutState.confirm)
+        await CheckoutState.confirm.set()
 
 async def check_mobile(data, message, state):
     if not data["mobile"]:
