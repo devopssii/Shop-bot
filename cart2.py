@@ -149,7 +149,12 @@ async def check_name(data, message):
         await CheckoutState.name.set()
         await message.answer('Укажите свое имя.', reply_markup=back_markup())
         return False
-    return True
+    else:
+        # Если имя есть, переходим к следующему этапу - запросу номера телефона
+        await CheckoutState.mobile.set()
+        await message.answer('Укажите свой номер телефона или поделитесь контактом.', reply_markup=contact_markup())
+        return True
+
 
 @dp.message_handler(IsUser(), state=CheckoutState.check_cart)
 async def process_check_cart_all_right(message: Message, state: FSMContext):
