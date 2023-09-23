@@ -201,9 +201,8 @@ async def process_address(message: Message, state: FSMContext):
 @dp.message_handler(IsUser(), state=CheckoutState.comment)
 async def process_comment(message: Message, state: FSMContext):
     db.query("UPDATE users SET comment = ? WHERE cid = ?", (message.text, message.chat.id))
-    await message.answer('Спасибо! Ваш заказ оформлен.', reply_markup=ReplyKeyboardRemove())
-    await state.finish()
-
+    await CheckoutState.confirm.set()  # Устанавливаем следующее состояние - подтверждение
+    await confirm(message, state)  # Вызываем функцию для подтверждения
 
 async def get_address_from_coordinates(latitude, longitude, api_key):
     logging.info(f"Inside get_address_from_coordinates with lat: {latitude}, lon: {longitude}")
