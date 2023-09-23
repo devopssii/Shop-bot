@@ -13,19 +13,12 @@ async def process_delivery_status(message: Message):
     else: await delivery_status_answer(message, orders)
 
 async def delivery_status_answer(message, orders):
-
     res = ''
 
     for order in orders:
+        order_number = order[3]
+        order_status = order[4]  # извлечение статуса из пятого столбца
 
-        res += f'Заказ <b>№{order[3]}</b>'
-        answer = [
-            ' лежит на складе.',
-            ' уже в пути!',
-            ' прибыл и ждет вас на почте!'
-        ]
-
-        res += answer[0]
-        res += '\n\n'
+        res += f'Заказ <b>№{order_number}</b>{order_status}\n\n'
 
     await message.answer(res)
